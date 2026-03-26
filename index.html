@@ -3,197 +3,216 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>House Quiz Arcade</title>
+    <title>Solo House Arcade</title>
     <style>
-        :root { --main-bg: #5c94fc; --card-bg: #ffffff; --accent: #f1c40f; --danger: #e74c3c; }
-        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        :root { 
+            --bg: #1a1a2e; 
+            --panel: #16213e; 
+            --accent: #4cc9f0; 
+            --score-color: #4df0a2;
+            --danger: #ff4d6d; 
+        }
+        * { box-sizing: border-box; user-select: none; touch-action: manipulation; }
         
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--main-bg); overflow: hidden;
+        body { 
+            margin: 0; background: var(--bg); color: white;
+            font-family: 'Courier New', Courier, monospace; overflow: hidden;
         }
 
-        /* Single Player Layout */
         #game-container {
-            display: flex; flex-direction: column;
-            width: 100%; height: 100%; max-width: 500px; margin: 0 auto;
+            display: flex; flex-direction: column; height: 100vh; max-width: 450px; margin: 0 auto;
+            border-left: 4px solid #333; border-right: 4px solid #333;
         }
 
+        /* Top Bar */
         #hud {
-            height: 80px; display: flex; justify-content: space-around; align-items: center;
-            background: rgba(0,0,0,0.4); color: white; font-size: 1.5rem; font-weight: bold;
+            padding: 20px; display: grid; grid-template-columns: 1fr 1fr;
+            background: var(--panel); border-bottom: 4px solid var(--accent);
         }
+        .stat-label { font-size: 0.8rem; color: var(--accent); display: block; }
+        .stat-value { font-size: 1.8rem; font-weight: bold; }
 
-        #main-stage {
+        /* Game Area */
+        #stage {
             flex: 1; display: flex; flex-direction: column; align-items: center;
-            justify-content: center; padding: 20px; gap: 20px;
+            justify-content: center; padding: 20px; gap: 30px;
         }
 
-        .quiz-card {
-            width: 100%; background: var(--card-bg); border: 6px solid #000;
-            border-radius: 20px; padding: 30px; display: flex; flex-direction: column;
-            align-items: center; box-shadow: 8px 8px 0 rgba(0,0,0,0.2);
+        #display-emoji { 
+            font-size: 7rem; text-shadow: 0 0 20px rgba(76, 201, 240, 0.5);
+            transition: transform 0.1s;
         }
-
-        #display-emoji { font-size: 6rem; margin: 20px 0; transition: transform 0.2s; }
-        .bounce { animation: bounce 0.6s infinite alternate; }
 
         .button-grid {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%;
         }
 
         .choice-btn {
-            padding: 15px 5px; font-size: 1.1rem; font-weight: bold; border: 4px solid #000;
-            background: var(--accent); border-radius: 10px; cursor: pointer;
-            box-shadow: 4px 4px 0 #8a6d00; text-transform: uppercase;
+            padding: 20px 10px; font-family: inherit; font-weight: bold;
+            background: transparent; color: white; border: 2px solid var(--accent);
+            border-radius: 8px; cursor: pointer; transition: 0.1s;
         }
 
-        .choice-btn:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0 #000; }
+        .choice-btn:active { background: var(--accent); color: var(--bg); }
 
         /* Overlays */
-        .screen-overlay {
-            position: fixed; inset: 0; background: #000; z-index: 100;
-            display: flex; flex-direction: column; align-items: center;
-            justify-content: center; color: white; text-align: center; padding: 30px;
+        .overlay {
+            position: fixed; inset: 0; background: rgba(26, 26, 46, 0.95);
+            z-index: 100; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center;
         }
 
-        .lock-notice { color: var(--danger); font-size: 2rem; font-weight: bold; }
-        
-        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-15px); } }
-        .error-shake { filter: grayscale(1); pointer-events: none; opacity: 0.6; }
+        .big-btn {
+            background: var(--accent); border: none; padding: 20px 50px;
+            font-family: inherit; font-size: 1.5rem; font-weight: bold;
+            margin-top: 20px; border-radius: 50px; cursor: pointer;
+        }
+
+        /* Animations */
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
+        .error { animation: shake 0.3s; color: var(--danger); }
+        .bounce { animation: bounce 0.5s infinite alternate; }
+        @keyframes bounce { from { transform: scale(1); } to { transform: scale(1.1); } }
     </style>
 </head>
 <body>
 
 <div id="game-container">
     <div id="hud">
-        <span>POINTS: <span id="score">0</span></span>
-        <span>TIME: <span id="timer">45</span></span>
-    </div>
-
-    <div id="main-stage">
-        <div class="quiz-card" id="card">
-            <div id="instruction" style="font-weight:bold; color:#666">Identify the Room:</div>
-            <div id="display-emoji" class="bounce">🏠</div>
-            <div class="button-grid" id="choices"></div>
+        <div>
+            <span class="stat-label">SCORE</span>
+            <span id="score" class="stat-value">0</span>
+        </div>
+        <div style="text-align: right;">
+            <span class="stat-label">TIME</span>
+            <span id="timer" class="stat-value">30</span>
         </div>
     </div>
+
+    <div id="stage">
+        <div id="display-emoji" class="bounce">🏠</div>
+        <div class="button-grid" id="choices"></div>
+    </div>
 </div>
 
-<div id="start-screen" class="screen-overlay">
-    <h1 id="title-text">HOUSE ARCADE</h1>
-    <p id="status-text">Loading...</p>
-    <button class="choice-btn" id="start-button" style="padding: 20px 60px;" onclick="initGame()">START</button>
+<div id="start-screen" class="overlay">
+    <h1 style="font-size: 3rem; color: var(--accent);">SOLO<br>ARCADE</h1>
+    <p id="attempt-text">Ready Player One</p>
+    <button class="big-btn" onclick="startGame()">INSERT COIN</button>
 </div>
 
-<div id="end-screen" class="screen-overlay" style="display:none">
-    <h1 style="color:var(--accent)">FINISH!</h1>
-    <div id="result-board" style="font-size: 1.5rem; margin: 20px 0;"></div>
-    <button class="choice-btn" id="retry-button" style="padding: 15px 40px;" onclick="location.reload()">TRY AGAIN</button>
+<div id="end-screen" class="overlay" style="display:none">
+    <h1 id="end-title">GAME OVER</h1>
+    <div style="margin: 20px 0;">
+        <p>FINAL SCORE: <span id="final-score" style="color:var(--score-color); font-size: 2rem;">0</span></p>
+        <p>BEST: <span id="best-score">0</span></p>
+    </div>
+    <button id="retry-btn" class="big-btn" onclick="location.reload()">TRY AGAIN</button>
 </div>
 
 <script>
     const gameData = [
-        { name: 'KITCHEN', icon: '🍳', pool: ['KITCHEN', 'BEDROOM', 'GARDEN', 'BATHROOM'] },
-        { name: 'BEDROOM', icon: '🛏️', pool: ['BEDROOM', 'KITCHEN', 'ATTIC', 'HALLWAY'] },
-        { name: 'BATHROOM', icon: '🛁', pool: ['BATHROOM', 'LIVING ROOM', 'KITCHEN', 'GARAGE'] },
-        { name: 'LIVING ROOM', icon: '🛋️', pool: ['LIVING ROOM', 'BEDROOM', 'DINING ROOM', 'KITCHEN'] },
-        { name: 'GARAGE', icon: '🚗', pool: ['GARAGE', 'GARDEN', 'KITCHEN', 'LIVING ROOM'] }
+        { name: 'KITCHEN', icon: '🍳', pool: ['KITCHEN', 'BEDROOM', 'GARDEN', 'PANTRY'] },
+        { name: 'BEDROOM', icon: '🛏️', pool: ['BEDROOM', 'ATTIC', 'HALLWAY', 'KITCHEN'] },
+        { name: 'BATHROOM', icon: '🛁', pool: ['BATHROOM', 'LIVING ROOM', 'GARAGE', 'LAUNDRY'] },
+        { name: 'LIVING ROOM', icon: '🛋️', pool: ['LIVING ROOM', 'DINING ROOM', 'STUDY', 'BEDROOM'] },
+        { name: 'GARAGE', icon: '🚗', pool: ['GARAGE', 'DRIVEWAY', 'GARDEN', 'BASEMENT'] },
+        { name: 'GARDEN', icon: '🌻', pool: ['GARDEN', 'BALCONY', 'YARD', 'KITCHEN'] }
     ];
 
-    let currentScore = 0;
-    let secondsLeft = 45;
-    let isGameRunning = false;
-    let penaltyActive = false;
+    let score = 0;
+    let timeLeft = 30;
+    let gameActive = false;
+    let isPenalty = false;
+    let timerInterval;
 
-    // LOCAL STORAGE CHECK
-    let plays = parseInt(localStorage.getItem('arcade_playcount') || 0);
-    let record = parseInt(localStorage.getItem('arcade_highscore') || 0);
+    // Persist data
+    let plays = parseInt(localStorage.getItem('solo_plays') || 0);
+    let highScore = parseInt(localStorage.getItem('solo_best') || 0);
 
     window.onload = () => {
-        const btn = document.getElementById('start-button');
-        const status = document.getElementById('status-text');
-        
         if (plays >= 2) {
-            document.getElementById('title-text').innerText = "LIMIT REACHED";
-            status.innerHTML = `You have used both attempts.<br>Best Score: <b>${record}</b>`;
-            btn.style.display = 'none';
+            document.querySelector('.big-btn').style.display = 'none';
+            document.getElementById('attempt-text').innerHTML = "CREDITS EXHAUSTED<br>Best: " + highScore;
         } else {
-            status.innerText = `Attempt ${plays + 1} of 2`;
+            document.getElementById('attempt-text').innerText = `ATTEMPT ${plays + 1} / 2`;
         }
     };
 
-    function initGame() {
+    function startGame() {
         plays++;
-        localStorage.setItem('arcade_playcount', plays);
+        localStorage.setItem('solo_plays', plays);
         document.getElementById('start-screen').style.display = 'none';
-        isGameRunning = true;
+        gameActive = true;
         nextRound();
         
-        const countdown = setInterval(() => {
-            secondsLeft--;
-            document.getElementById('timer').innerText = secondsLeft;
-            if(secondsLeft <= 0) {
-                clearInterval(countdown);
-                gameOver();
-            }
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            document.getElementById('timer').innerText = timeLeft;
+            if (timeLeft <= 0) endGame();
         }, 1000);
     }
 
     function nextRound() {
-        if(!isGameRunning || penaltyActive) return;
-        
+        if (!gameActive || isPenalty) return;
+
         const item = gameData[Math.floor(Math.random() * gameData.length)];
         const display = document.getElementById('display-emoji');
         const choiceContainer = document.getElementById('choices');
-        
+
         display.innerText = item.icon;
+        display.classList.remove('error');
         choiceContainer.innerHTML = '';
 
-        let shuffled = [...item.pool].sort(() => Math.random() - 0.5);
-        shuffled.forEach(choice => {
-            const b = document.createElement('button');
-            b.className = 'choice-btn';
-            b.innerText = choice;
-            b.onclick = () => checkAnswer(choice, item.name);
-            choiceContainer.appendChild(b);
+        // Shuffle choices
+        [...item.pool].sort(() => Math.random() - 0.5).forEach(choice => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.innerText = choice;
+            btn.onclick = () => handleInput(choice, item.name);
+            choiceContainer.appendChild(btn);
         });
     }
 
-    function checkAnswer(selected, correct) {
-        if(penaltyActive) return;
-        
-        if(selected === correct) {
-            currentScore++;
-            document.getElementById('score').innerText = currentScore;
+    function handleInput(selected, correct) {
+        if (isPenalty) return;
+
+        if (selected === correct) {
+            score += 10;
+            // Time bonus for correct answer
+            timeLeft += 1; 
+            document.getElementById('score').innerText = score;
             nextRound();
         } else {
-            penaltyActive = true;
-            document.getElementById('card').classList.add('error-shake');
+            isPenalty = true;
+            document.getElementById('display-emoji').classList.add('error');
+            // Penalty: lose 2 seconds
+            timeLeft = Math.max(0, timeLeft - 2); 
             setTimeout(() => {
-                penaltyActive = false;
-                document.getElementById('card').classList.remove('error-shake');
+                isPenalty = false;
                 nextRound();
-            }, 2000);
+            }, 600);
         }
     }
 
-    function gameOver() {
-        isGameRunning = false;
-        if(currentScore > record) {
-            record = currentScore;
-            localStorage.setItem('arcade_highscore', record);
+    function endGame() {
+        clearInterval(timerInterval);
+        gameActive = false;
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('solo_best', highScore);
+            document.getElementById('end-title').innerText = "NEW RECORD!";
         }
         
         document.getElementById('end-screen').style.display = 'flex';
-        document.getElementById('result-board').innerHTML = `Current Score: ${currentScore}<br>Best Score: ${record}`;
-        
-        if(plays >= 2) {
-            const retry = document.getElementById('retry-button');
-            retry.innerText = "LOCKED";
-            retry.disabled = true;
-            retry.style.opacity = "0.5";
+        document.getElementById('final-score').innerText = score;
+        document.getElementById('best-score').innerText = highScore;
+
+        if (plays >= 2) {
+            const btn = document.getElementById('retry-btn');
+            btn.innerText = "OUT OF CREDITS";
+            btn.style.opacity = "0.5";
+            btn.onclick = null;
         }
     }
 </script>
