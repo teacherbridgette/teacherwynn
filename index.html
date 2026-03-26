@@ -1,141 +1,202 @@
-<script>
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    let score = 0, timeLeft = 50, active = false, isFrozen = false;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>House Quiz Arcade</title>
+    <style>
+        :root { --main-bg: #5c94fc; --card-bg: #ffffff; --accent: #f1c40f; --danger: #e74c3c; }
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--main-bg); overflow: hidden;
+        }
 
-    // --- LOCK & LIMIT LOGIC ---
-    // Check how many times they have played before
-    let playCount = localStorage.getItem('houseGame_plays') || 0;
-    let highScore = localStorage.getItem('houseGame_score') || 0;
+        /* Single Player Layout */
+        #game-container {
+            display: flex; flex-direction: column;
+            width: 100%; height: 100%; max-width: 500px; margin: 0 auto;
+        }
+
+        #hud {
+            height: 80px; display: flex; justify-content: space-around; align-items: center;
+            background: rgba(0,0,0,0.4); color: white; font-size: 1.5rem; font-weight: bold;
+        }
+
+        #main-stage {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; padding: 20px; gap: 20px;
+        }
+
+        .quiz-card {
+            width: 100%; background: var(--card-bg); border: 6px solid #000;
+            border-radius: 20px; padding: 30px; display: flex; flex-direction: column;
+            align-items: center; box-shadow: 8px 8px 0 rgba(0,0,0,0.2);
+        }
+
+        #display-emoji { font-size: 6rem; margin: 20px 0; transition: transform 0.2s; }
+        .bounce { animation: bounce 0.6s infinite alternate; }
+
+        .button-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%;
+        }
+
+        .choice-btn {
+            padding: 15px 5px; font-size: 1.1rem; font-weight: bold; border: 4px solid #000;
+            background: var(--accent); border-radius: 10px; cursor: pointer;
+            box-shadow: 4px 4px 0 #8a6d00; text-transform: uppercase;
+        }
+
+        .choice-btn:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0 #000; }
+
+        /* Overlays */
+        .screen-overlay {
+            position: fixed; inset: 0; background: #000; z-index: 100;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; color: white; text-align: center; padding: 30px;
+        }
+
+        .lock-notice { color: var(--danger); font-size: 2rem; font-weight: bold; }
+        
+        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-15px); } }
+        .error-shake { filter: grayscale(1); pointer-events: none; opacity: 0.6; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="hud">
+        <span>POINTS: <span id="score">0</span></span>
+        <span>TIME: <span id="timer">45</span></span>
+    </div>
+
+    <div id="main-stage">
+        <div class="quiz-card" id="card">
+            <div id="instruction" style="font-weight:bold; color:#666">Identify the Room:</div>
+            <div id="display-emoji" class="bounce">🏠</div>
+            <div class="button-grid" id="choices"></div>
+        </div>
+    </div>
+</div>
+
+<div id="start-screen" class="screen-overlay">
+    <h1 id="title-text">HOUSE ARCADE</h1>
+    <p id="status-text">Loading...</p>
+    <button class="choice-btn" id="start-button" style="padding: 20px 60px;" onclick="initGame()">START</button>
+</div>
+
+<div id="end-screen" class="screen-overlay" style="display:none">
+    <h1 style="color:var(--accent)">FINISH!</h1>
+    <div id="result-board" style="font-size: 1.5rem; margin: 20px 0;"></div>
+    <button class="choice-btn" id="retry-button" style="padding: 15px 40px;" onclick="location.reload()">TRY AGAIN</button>
+</div>
+
+<script>
+    const gameData = [
+        { name: 'KITCHEN', icon: '🍳', pool: ['KITCHEN', 'BEDROOM', 'GARDEN', 'BATHROOM'] },
+        { name: 'BEDROOM', icon: '🛏️', pool: ['BEDROOM', 'KITCHEN', 'ATTIC', 'HALLWAY'] },
+        { name: 'BATHROOM', icon: '🛁', pool: ['BATHROOM', 'LIVING ROOM', 'KITCHEN', 'GARAGE'] },
+        { name: 'LIVING ROOM', icon: '🛋️', pool: ['LIVING ROOM', 'BEDROOM', 'DINING ROOM', 'KITCHEN'] },
+        { name: 'GARAGE', icon: '🚗', pool: ['GARAGE', 'GARDEN', 'KITCHEN', 'LIVING ROOM'] }
+    ];
+
+    let currentScore = 0;
+    let secondsLeft = 45;
+    let isGameRunning = false;
+    let penaltyActive = false;
+
+    // LOCAL STORAGE CHECK
+    let plays = parseInt(localStorage.getItem('arcade_playcount') || 0);
+    let record = parseInt(localStorage.getItem('arcade_highscore') || 0);
 
     window.onload = () => {
-        const startBtn = document.querySelector('#start-overlay .btn-choice');
-        const startTitle = document.querySelector('#start-overlay h1');
+        const btn = document.getElementById('start-button');
+        const status = document.getElementById('status-text');
         
-        if (playCount >= 2) {
-            // LOCK THE GAME
-            startTitle.innerText = "GAME LOCKED";
-            startBtn.style.display = 'none';
-            const msg = document.createElement('p');
-            msg.innerHTML = `You have used your 2 attempts!<br>Your Best Score: <b>${highScore}</b>`;
-            msg.style.fontSize = "1.5rem";
-            document.getElementById('start-overlay').appendChild(msg);
+        if (plays >= 2) {
+            document.getElementById('title-text').innerText = "LIMIT REACHED";
+            status.innerHTML = `You have used both attempts.<br>Best Score: <b>${record}</b>`;
+            btn.style.display = 'none';
+        } else {
+            status.innerText = `Attempt ${plays + 1} of 2`;
         }
     };
 
-    const houseData = [
-        { name: 'KITCHEN', icon: '🍳', rooms: ['KITCHEN', 'BEDROOM', 'BATHROOM', 'LIVING ROOM'] },
-        { name: 'BEDROOM', icon: '🛏️', rooms: ['BEDROOM', 'KITCHEN', 'DINING ROOM', 'BATHROOM'] },
-        { name: 'BATHROOM', icon: '🛁', rooms: ['BATHROOM', 'LIVING ROOM', 'KITCHEN', 'BEDROOM'] },
-        { name: 'DINING ROOM', icon: '🍽️', rooms: ['DINING ROOM', 'KITCHEN', 'BATHROOM', 'LIVING ROOM'] },
-        { name: 'LIVING ROOM', icon: '🛋️', rooms: ['LIVING ROOM', 'BEDROOM', 'BATHROOM', 'KITCHEN'] }
-    ];
-
-    function playNote(f, d) {
-        const o = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
-        o.frequency.setValueAtTime(f, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + d);
-        o.connect(g); g.connect(audioCtx.destination);
-        o.start(); o.stop(audioCtx.currentTime + d);
-    }
-
-    function startGame() {
-        // Increase play count and save it
-        playCount++;
-        localStorage.setItem('houseGame_plays', playCount);
+    function initGame() {
+        plays++;
+        localStorage.setItem('arcade_playcount', plays);
+        document.getElementById('start-screen').style.display = 'none';
+        isGameRunning = true;
+        nextRound();
         
-        audioCtx.resume();
-        document.getElementById('start-overlay').style.display = 'none';
-        active = true;
-        updateQuestion();
-        const clock = setInterval(() => {
-            timeLeft--;
-            document.getElementById('timer-blob').innerText = timeLeft;
-            if(timeLeft <= 0) { 
-                clearInterval(clock); 
-                active = false; 
-                finishGame();
+        const countdown = setInterval(() => {
+            secondsLeft--;
+            document.getElementById('timer').innerText = secondsLeft;
+            if(secondsLeft <= 0) {
+                clearInterval(countdown);
+                gameOver();
             }
         }, 1000);
     }
 
-    function finishGame() {
-        // Update High Score only if this current score is better
-        if (score > highScore) {
-            highScore = score;
-            localStorage.setItem('houseGame_score', highScore);
-        }
-
-        document.getElementById('win-overlay').style.display = 'flex';
-        let remaining = 2 - playCount;
-        let attemptText = remaining > 0 ? `Attempts left: ${remaining}` : "No attempts left!";
+    function nextRound() {
+        if(!isGameRunning || penaltyActive) return;
         
-        document.getElementById('final-stats').innerHTML = `
-            SCORE: ${score}<br>
-            BEST: ${highScore}<br>
-            <small>${attemptText}</small>
-        `;
+        const item = gameData[Math.floor(Math.random() * gameData.length)];
+        const display = document.getElementById('display-emoji');
+        const choiceContainer = document.getElementById('choices');
+        
+        display.innerText = item.icon;
+        choiceContainer.innerHTML = '';
 
-        // Hide "Play Again" button if they are out of turns
-        if (playCount >= 2) {
-            document.querySelector('#win-overlay .btn-choice').innerText = "LOCKED";
-            document.querySelector('#win-overlay .btn-choice').disabled = true;
-            document.querySelector('#win-overlay .btn-choice').style.opacity = "0.5";
-        }
+        let shuffled = [...item.pool].sort(() => Math.random() - 0.5);
+        shuffled.forEach(choice => {
+            const b = document.createElement('button');
+            b.className = 'choice-btn';
+            b.innerText = choice;
+            b.onclick = () => checkAnswer(choice, item.name);
+            choiceContainer.appendChild(b);
+        });
     }
 
-    // ... (Keep your updateQuestion and createBtn functions exactly as they were) ...
-    function updateQuestion() {
-        if(!active || isFrozen) return;
-        const item = houseData[Math.floor(Math.random() * houseData.length)];
-        const isSpelling = timeLeft < 25;
-        const display = document.getElementById('display-icon');
-        const options = document.getElementById('options-container');
-        options.innerHTML = '';
-        if(!isSpelling) {
-            display.innerText = item.icon;
-            display.className = "big-display";
-            let pool = [...item.rooms].sort(() => Math.random() - 0.5);
-            pool.forEach(r => createBtn(r, item.name));
+    function checkAnswer(selected, correct) {
+        if(penaltyActive) return;
+        
+        if(selected === correct) {
+            currentScore++;
+            document.getElementById('score').innerText = currentScore;
+            nextRound();
         } else {
-            let word = item.name, idx = Math.floor(Math.random() * word.length);
-            if(word[idx] === ' ') idx--;
-            let correct = word[idx], hidden = word.split(''); hidden[idx] = '_';
-            display.innerText = hidden.join('');
-            display.className = "big-display spelling-text";
-            let pool = [correct];
-            while(pool.length < 4) {
-                let r = String.fromCharCode(65 + Math.floor(Math.random()*26));
-                if(!pool.includes(r)) pool.push(r);
-            }
-            pool.sort(() => Math.random() - 0.5).forEach(l => createBtn(l, correct));
+            penaltyActive = true;
+            document.getElementById('card').classList.add('error-shake');
+            setTimeout(() => {
+                penaltyActive = false;
+                document.getElementById('card').classList.remove('error-shake');
+                nextRound();
+            }, 2000);
         }
     }
 
-    function createBtn(text, correct) {
-        const b = document.createElement('button');
-        b.className = 'btn-choice';
-        b.innerText = text;
-        b.onclick = () => {
-            if(isFrozen) return;
-            if(text === correct) {
-                score++;
-                document.getElementById('score-val').innerText = score;
-                playNote(800, 0.2);
-                updateQuestion();
-            } else {
-                isFrozen = true;
-                playNote(200, 0.5);
-                document.getElementById('main-area').classList.add('frozen');
-                document.getElementById('freeze-msg').style.display = 'block';
-                setTimeout(() => {
-                    isFrozen = false;
-                    document.getElementById('main-area').classList.remove('frozen');
-                    document.getElementById('freeze-msg').style.display = 'none';
-                    updateQuestion();
-                }, 2000);
-            }
-        };
-        document.getElementById('options-container').appendChild(b);
+    function gameOver() {
+        isGameRunning = false;
+        if(currentScore > record) {
+            record = currentScore;
+            localStorage.setItem('arcade_highscore', record);
+        }
+        
+        document.getElementById('end-screen').style.display = 'flex';
+        document.getElementById('result-board').innerHTML = `Current Score: ${currentScore}<br>Best Score: ${record}`;
+        
+        if(plays >= 2) {
+            const retry = document.getElementById('retry-button');
+            retry.innerText = "LOCKED";
+            retry.disabled = true;
+            retry.style.opacity = "0.5";
+        }
     }
 </script>
+
+</body>
+</html>
