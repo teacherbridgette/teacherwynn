@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RED RIDING HOOD DUEL: AUDIO EDITION</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+    <style>
+        :root { --p1: #ff4d4d; --p2: #4a90e2; --gold: #f1c40f; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Fredoka One', cursive; background: #0b1a07; user-select: none; }
+        
+        .game-wrapper { 
+            display: flex; width: 100vw; height: 100vh; 
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), 
+                        url('https://images.unsplash.com/photo-1511497584788-876760111969?auto=format&fit=crop&q=80&w=2000') center/cover; 
+            border: 10px solid #2d5a27; box-sizing: border-box;
+        }
+
+        #watermark { position: fixed; bottom: 15px; right: 20px; color: rgba(255,255,255,0.4); font-size: 1.2rem; z-index: 1000; }
+
+        .player-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+        #zone-p1 { border-right: 8px solid white; background: rgba(255, 77, 77, 0.1); }
+        #zone-p2 { background: rgba(74, 144, 226, 0.1); }
+
+        #timer-main { 
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%); 
+            background: white; color: #d63031; padding: 8px 50px; 
+            border: 6px solid #ff4d4d; border-radius: 50px; font-size: 3.5rem; z-index: 100; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        .score-board { position: absolute; top: 25px; font-size: 4.5rem; color: white; text-shadow: 3px 3px 0px #000; }
+
+        .question-card { 
+            background: white; 
+            width: 420px; height: 380px; 
+            border-radius: 50px; 
+            display: flex; align-items: center; justify-content: center; 
+            box-shadow: 0 15px 0px rgba(0,0,0,0.3); 
+            margin-bottom: 30px; 
+            overflow: hidden;
+            padding: 10px;
+        }
+        
+        .emoji-display { font-size: 18rem; }
+        .audio-icon { font-size: 12rem; animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .button-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 85%; }
+        .ans-btn { 
+            padding: 25px; font-size: 4rem; cursor: pointer; border: none; 
+            border-radius: 20px; background: white; box-shadow: 0 8px 0 #bbb; 
+            font-family: 'Fredoka One'; transition: 0.1s; 
+        }
+        .ans-btn:active { transform: translateY(6px); box-shadow: none; }
+        .ans-btn:disabled { opacity: 0.5; cursor: default; filter: grayscale(1); }
+
+        .frozen-overlay { 
+            position: absolute; inset: 0; background: rgba(0,0,0,0.92); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            color: #ff4d4d; z-index: 150; 
+        }
+        .wolf-laugh { font-size: 14rem; animation: shake 0.15s infinite; }
+
+        #screen-overlay { 
+            position: fixed; inset: 0; background: rgba(0,0,0,0.95); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            color: white; z-index: 2000; text-align: center; 
+        }
+        
+        .big-countdown { font-size: 22rem !important; color: var(--gold); }
+        .hidden { display: none !important; }
+
+        /* CORRECT NOTIFICATION SCREEN */
+        #correct-screen {
+            position: fixed; inset: 0; background: black; color: #2ecc71;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 6rem; z-index: 3000; text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="watermark">By Teacher Wynn</div>
+    <div id="timer-main">READY?</div>
+
+    <div id="correct-screen" class="hidden"></div>
+
+    <div class="game-wrapper">
+        <div id="zone-p1" class="player-zone">
+            <div class="score-board">T1: <span id="score1">0</span></div>
+            <div class="question-card"><div id="q1" class="emoji-display">👧</div></div>
+            <div id="btns1" class="button-grid"></div>
+            <div id="freeze1" class="frozen-overlay hidden">
+                <div class="wolf-laugh">🐺</div>
+                <div style="font-size: 3rem; color:white;">HA! <span id="f-timer1">3</span>s</div>
+            </div>
+        </div>
+
+        <div id="zone-p2" class="player-zone">
+            <div class="score-board">T2: <span id="score2">0</span></div>
+            <div class="question-card"><div id="q2" class="emoji-display">👧</div></div>
+            <div id="btns2" class="button-grid"></div>
+            <div id="freeze2" class="frozen-overlay hidden">
+                <div class="wolf-laugh">🐺</div>
+                <div style="font-size: 3rem; color:white;">HA! <span id="f-timer2">3</span>s</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="screen-overlay">
+        <h1 id="ov-title" style="font-size: 5rem;">STORY DUEL</h1>
+        <div id="ov-desc" style="font-size: 2.5rem; margin-bottom: 25px;">Level 1: Emoji to Name<br>Level 2: Listen & Pick Emoji</div>
+        <button id="start-btn" onclick="initGame()" style="padding: 25px 70px; font-size: 3.5rem; border-radius: 50px; cursor: pointer; font-family: 'Fredoka One'; background: #2ecc71; color: white; border: none; box-shadow: 0 10px 0 #27ae60;">PLAY</button>
+    </div>
+
+    <audio id="bg-music" loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3"></audio>
+    <audio id="sfx-correct" src="https://assets.mixkit.co/active_storage/sfx/2020/2020-preview.mp3"></audio>
+    <audio id="sfx-wrong" src="https://assets.mixkit.co/active_storage/sfx/1103/1103-preview.mp3"></audio>
+    <audio id="sfx-tick" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
+    <audio id="sfx-whistle" src="https://assets.mixkit.co/active_storage/sfx/2015/2015-preview.mp3"></audio>
+    <audio id="sfx-win" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3"></audio>
+    <audio id="tts-audio"></audio>
+
+<script>
+    const state = {
+        scores: [0, 0], phase: 0, timeLeft: 20,
+        p1: { isFrozen: false, answered: false }, 
+        p2: { isFrozen: false, answered: false },
+        currentWord: null,
+        isRoundLocked: false
+    };
+
+    const words = [
+        { q: '👧', a: 'GIRL' },
+        { q: '🐺', a: 'WOLF' },
+        { q: '👵', a: 'GRANDMA' },
+        { q: '🪓', a: 'HUNTER' }
+    ];
+
+    function initGame() {
+        document.getElementById('bg-music').volume = 0.3;
+        document.getElementById('bg-music').play();
+        startPhase(0);
+    }
+
+    async function startPhase(idx) {
+        if(idx > 1) return endGame();
+        state.phase = idx + 1;
+        const ov = document.getElementById('screen-overlay');
+        const ovTitle = document.getElementById('ov-title');
+        
+        ov.classList.remove('hidden');
+        document.getElementById('start-btn').classList.add('hidden');
+        ovTitle.innerText = `PHASE ${state.phase}`;
+        
+        await new Promise(r => setTimeout(r, 3000));
+
+        ovTitle.classList.add('big-countdown');
+        for(let i=3; i>0; i--) {
+            ovTitle.innerText = i;
+            document.getElementById('sfx-tick').play();
+            await new Promise(r => setTimeout(r, 1000));
+        }
+        
+        document.getElementById('sfx-whistle').play();
+        ov.classList.add('hidden');
+        state.timeLeft = 25;
+        
+        if(state.phase === 1) {
+            refresh(1); refresh(2);
+        } else {
+            document.getElementById('bg-music').pause(); // Stop music for Phase 2
+            startAudioRound();
+        }
+        
+        const ticker = setInterval(() => {
+            state.timeLeft--;
+            document.getElementById('timer-main').innerText = `TIME: ${state.timeLeft}`;
+            if(state.timeLeft <= 0) { 
+                clearInterval(ticker); 
+                state.isRoundLocked = true; 
+                startPhase(idx + 1); 
+            }
+        }, 1000);
+    }
+
+    async function startAudioRound() {
+        if(state.timeLeft <= 0) return;
+        state.isRoundLocked = true;
+        
+        setupAudioUI(1); setupAudioUI(2);
+        document.getElementById('timer-main').innerText = "LISTEN...";
+        
+        await new Promise(r => setTimeout(r, 2000));
+
+        state.currentWord = words[Math.floor(Math.random()*words.length)];
+        const tts = document.getElementById('tts-audio');
+        tts.src = `https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q=${state.currentWord.a}`;
+        tts.play();
+
+        state.p1.answered = false;
+        state.p2.answered = false;
+        state.isRoundLocked = false;
+    }
+
+    function setupAudioUI(p) {
+        const zone = p === 1 ? '1' : '2';
+        const qBox = document.getElementById(`q${zone}`);
+        const btnBox = document.getElementById(`btns${zone}`);
+        qBox.innerHTML = '<span class="audio-icon">🔊</span>';
+        btnBox.innerHTML = '';
+
+        shuffle(words).forEach(item => {
+            const b = document.createElement('button');
+            b.className = 'ans-btn';
+            b.innerText = item.q;
+            b.onclick = () => handleAudioAnswer(p, item.q);
+            btnBox.appendChild(b);
+        });
+    }
+
+    async function handleAudioAnswer(p, emoji) {
+        if(state.isRoundLocked || state[`p${p}`].answered || state[`p${p}`].isFrozen) return;
+        
+        state[`p${p}`].answered = true;
+
+        if(emoji === state.currentWord.q) {
+            state.isRoundLocked = true; // Stop other player from clicking
+            playSfx('sfx-correct');
+            state.scores[p-1] += 10;
+            document.getElementById(`score${p}`).innerText = state.scores[p-1];
+            
+            // Show Black Screen Correct Notice
+            const cs = document.getElementById('correct-screen');
+            cs.innerText = `TEAM ${p} CORRECT!`;
+            cs.classList.remove('hidden');
+            
+            await new Promise(r => setTimeout(r, 1000));
+            cs.classList.add('hidden');
+            
+            startAudioRound();
+        } else {
+            playSfx('sfx-wrong');
+            doFreeze(p);
+            
+            // Check if both players failed or are finished
+            if(state.p1.answered && state.p2.answered) {
+                setTimeout(startAudioRound, 1000);
+            }
+        }
+    }
+
+    function refresh(p) {
+        if(state.phase === 2) return;
+        if(state[`p${p}`].isFrozen) return;
+        
+        const zone = p === 1 ? '1' : '2';
+        const qBox = document.getElementById(`q${zone}`);
+        const btnBox = document.getElementById(`btns${zone}`);
+        btnBox.innerHTML = '';
+
+        let item = words[Math.floor(Math.random()*words.length)];
+        qBox.innerText = item.q;
+        
+        let opts = ["GIRL", "WOLF", "GRANDMA", "HUNTER"];
+        shuffle(opts).forEach(opt => {
+            const b = document.createElement('button');
+            b.className = 'ans-btn';
+            b.innerText = opt;
+            b.onclick = () => {
+                if(opt === item.a) {
+                    playSfx('sfx-correct');
+                    state.scores[p-1] += 10;
+                    document.getElementById(`score${p}`).innerText = state.scores[p-1];
+                    refresh(p);
+                } else {
+                    playSfx('sfx-wrong');
+                    doFreeze(p);
+                }
+            };
+            btnBox.appendChild(b);
+        });
+    }
+
+    function doFreeze(p) {
+        state[`p${p}`].isFrozen = true;
+        const ov = document.getElementById(`freeze${p}`);
+        const txt = document.getElementById(`f-timer${p}`);
+        ov.classList.remove('hidden');
+        let count = 3;
+        txt.innerText = count;
+        const timer = setInterval(() => {
+            count--;
+            if(count <= 0) {
+                clearInterval(timer);
+                ov.classList.add('hidden');
+                state[`p${p}`].isFrozen = false;
+                if(state.phase === 1) refresh(p);
+            } else { txt.innerText = count; }
+        }, 1000);
+    }
+
+    function playSfx(id) {
+        const s = document.getElementById(id);
+        s.currentTime = 0;
+        s.play();
+    }
+
+    function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+
+    function endGame() {
+        document.getElementById('bg-music').pause();
+        playSfx('sfx-win');
+        const ov = document.getElementById('screen-overlay');
+        ov.classList.remove('hidden');
+        const winner = state.scores[0] > state.scores[1] ? "TEAM 1 WINS!" : state.scores[1] > state.scores[0] ? "TEAM 2 WINS!" : "DRAW!";
+        document.getElementById('ov-title').innerText = winner;
+        document.getElementById('ov-desc').innerHTML = `FINAL SCORES: ${state.scores[0]} - ${state.scores[1]}<br><button onclick="location.reload()" style="padding:15px 30px; font-size:2rem; margin-top:20px; cursor:pointer; font-family:'Fredoka One';">REPLAY</button>`;
+    }
+</script>
+</body>
+</html>
